@@ -1,0 +1,2 @@
+# LuckySeven_frontend
+LuckySeven_frontend
