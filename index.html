@@ -105,6 +105,14 @@
                         <option value="1d">1d</option>
                     </select>
                 </div>
+                <div>
+                    <label for="start-date-chart" class="block text-sm font-medium text-gray-700">Start Date:</label>
+                    <input type="date" id="start-date-chart" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="end-date-chart" class="block text-sm font-medium text-gray-700">End Date:</label>
+                    <input type="date" id="end-date-chart" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
             </div>
             <div id="chart" class="bg-gray-50 p-4 rounded-md"></div>
         </div>
@@ -116,6 +124,16 @@
                 <div>
                     <label for="strategy-select" class="block text-sm font-medium text-gray-700">Select Strategy:</label>
                     <select id="strategy-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                </div>
+            </div>
+            <div id="github-repo-inputs" class="space-y-4 mb-4" style="display: none;">
+                <div>
+                    <label for="github-owner" class="block text-sm font-medium text-gray-700">GitHub Owner:</label>
+                    <input type="text" id="github-owner" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="binance">
+                </div>
+                <div>
+                    <label for="github-repo" class="block text-sm font-medium text-gray-700">GitHub Repo:</label>
+                    <input type="text" id="github-repo" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="binance-spot-api-docs">
                 </div>
             </div>
             <textarea id="strategy-code" class="strategy-editor w-full p-4 border border-gray-300 rounded-md" rows="20"></textarea>
@@ -161,8 +179,13 @@
         async function fetchAndDrawChart() {
             const symbol = $('#symbol-select').val();
             const interval = $('#interval-select').val();
-            const endDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-            const startDate = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 10); // 1 month ago
+            const startDate = $('#start-date-chart').val();
+            const endDate = $('#end-date-chart').val();
+
+            if (!startDate || !endDate) {
+                console.warn("Chart start or end date is not set.");
+                return; // Do not proceed if dates are not set
+            }
 
             try {
                 const response = await fetch(`${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&start_date=${startDate}&end_date=${endDate}`);
@@ -310,6 +333,8 @@
         // Event Listeners for K-line Chart
         $('#symbol-select').on('change', fetchAndDrawChart);
         $('#interval-select').on('change', fetchAndDrawChart);
+        $('#start-date-chart').on('change', fetchAndDrawChart);
+        $('#end-date-chart').on('change', fetchAndDrawChart);
         $('#search-symbol').on('keypress', function(e) {
             if (e.which === 13) { // Enter key pressed
                 const searchTerm = $(this).val().toUpperCase();
@@ -337,6 +362,7 @@
                 // Load default strategy (sma.py)
                 strategySelect.val("sma");
                 fetchStrategyCode("sma");
+                toggleGithubInputs("sma"); // Initial toggle based on default strategy
             } catch (error) {
                 console.error("Error fetching strategy list:", error);
             }
@@ -353,9 +379,18 @@
             }
         }
 
+        function toggleGithubInputs(strategyName) {
+            if (strategyName === "commit_sma") { // Or check if strategy code contains 'commit_count'
+                $('#github-repo-inputs').show();
+            } else {
+                $('#github-repo-inputs').hide();
+            }
+        }
+
         $('#strategy-select').on('change', function() {
             const selectedStrategy = $(this).val();
             fetchStrategyCode(selectedStrategy);
+            toggleGithubInputs(selectedStrategy);
         });
 
         // --- Backtest Logic ---
@@ -363,28 +398,43 @@
             const symbol = $('#symbol-select').val();
             const interval = $('#interval-select').val();
             const strategyCode = $('#strategy-code').val();
-            const endDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-            const startDate = new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10); // 3 months ago for backtest
+            const selectedStrategyName = $('#strategy-select').val();
+            const startDate = $('#start-date-chart').val();
+            const endDate = $('#end-date-chart').val();
+
+            if (!startDate || !endDate) {
+                alert("Please select both start and end dates for backtest.");
+                return;
+            }
 
             try {
                 $(this).prop('disabled', true).text('Running Backtest...');
+                const requestBody = {
+                    symbol: symbol,
+                    currency: "USDT",
+                    interval: interval,
+                    start_date: startDate,
+                    end_date: endDate,
+                    strategy_code: strategyCode,
+                        strategy_name: selectedStrategyName,
+                    initial_capital: 10000,
+                    commission_rate: 0.001,
+                    slippage: 0.0005,
+                    risk_free_rate: 0.02
+                };
+
+                // Add GitHub repo info if commit_sma is selected
+                if ($('#strategy-select').val() === "commit_sma") {
+                    requestBody.github_owner = $('#github-owner').val();
+                    requestBody.github_repo = $('#github-repo').val();
+                }
+
                 const response = await fetch(`${BACKEND_URL}/run_backtest`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        symbol: symbol,
-                        currency: "USDT",
-                        interval: interval,
-                        start_date: startDate,
-                        end_date: endDate,
-                        strategy_code: strategyCode,
-                        initial_capital: 10000,
-                        commission_rate: 0.001,
-                        slippage: 0.0005,
-                        risk_free_rate: 0.02
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
 
                 const result = await response.json();
@@ -539,6 +589,13 @@
 
         // Initial fetches on page load
         $(document).ready(function() {
+            // Set default dates for chart
+            const today = new Date();
+            const oneMonthAgo = new Date(today);
+            oneMonthAgo.setMonth(today.getMonth() - 1);
+            $('#start-date-chart').val(oneMonthAgo.toISOString().slice(0, 10));
+            $('#end-date-chart').val(today.toISOString().slice(0, 10));
+
             fetchTradingPairs();
             fetchStrategyList();
         });
