@@ -97,9 +97,22 @@
                 $('#strategy-pid').text(statusData.pid || 'N/A');
                 $('#strategy-started-at').text(statusData.started_at ? new Date(statusData.started_at).toLocaleString() : 'N/A');
 
+                if (statusData.status === "stopped" || statusData.status === "error") {
+                    $('#trade-logs-list').html(`<p class="text-gray-500 text-center mt-4">Strategy is ${statusData.status}. No live data to display.</p>`);
+                    $('#equity-chart').html(`<p class="text-gray-500 text-center mt-4">Strategy is ${statusData.status}. No live data to display.</p>`);
+                    return; // Stop further processing
+                }
+
                 // Fetch trade logs
                 const tradeLogsResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/trade_logs`);
-                const tradeLogs = await tradeLogsResponse.json();
+                let tradeLogs = [];
+                if (tradeLogsResponse.ok) {
+                    tradeLogs = await tradeLogsResponse.json();
+                } else {
+                    const errorData = await tradeLogsResponse.json();
+                    $('#trade-logs-list').html(`<p class="text-red-500">Error loading trade logs: ${errorData.detail || 'Unknown error'}</p>`);
+                }
+                
                 const tradeLogsTableBody = $('#trade-logs-table-body');
                 tradeLogsTableBody.empty();
 
@@ -124,7 +137,13 @@
 
                 // Fetch equity curve
                 const equityCurveResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/equity_curve`);
-                const equityCurveData = await equityCurveResponse.json();
+                let equityCurveData = [];
+                if (equityCurveResponse.ok) {
+                    equityCurveData = await equityCurveResponse.json();
+                } else {
+                    const errorData = await equityCurveResponse.json();
+                    $('#equity-chart').html(`<p class="text-red-500">Error loading equity curve: ${errorData.detail || 'Unknown error'}</p>`);
+                }
                 drawEquityChart(equityCurveData);
 
             } catch (error) {
