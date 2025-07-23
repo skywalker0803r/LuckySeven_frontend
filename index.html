@@ -78,6 +78,9 @@
 </head>
 <body class="bg-gray-100 p-4">
     <h1 class="text-3xl font-bold mb-6 text-center">LuckySeven Trading Platform</h1>
+    <nav class="mb-4 text-center">
+        <a href="dashboard.html" class="text-blue-600 hover:underline">Go to Dashboard</a>
+    </nav>
 
     <div class="container mx-auto bg-white p-6 rounded-lg shadow-md">
         <!-- K-line Chart Section -->
@@ -146,6 +149,12 @@
             <div id="backtest-metrics" class="backtest-results">
                 <!-- Metrics will be displayed here -->
             </div>
+            <div class="mt-4">
+                <h3 class="text-xl font-semibold mb-2">Save Strategy</h3>
+                <input type="text" id="save-strategy-name" placeholder="Enter strategy name" class="mt-1 block w-64 pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <button id="save-strategy-btn" class="mt-2 px-6 py-2 bg-green-600 text-white font-semibold rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">Save Strategy</button>
+                <p id="save-strategy-message" class="mt-2 text-sm"></p>
+            </div>
             <div id="backtest-chart" class="bg-gray-50 p-4 rounded-md mt-4">
                 <!-- Chart will be displayed here -->
             </div>
@@ -154,7 +163,7 @@
 
     
     <script>
-        const BACKEND_URL = "http://localhost:8000"; // Adjust if your backend runs on a different port
+        const BACKEND_URL = "http://localhost:8001"; // Adjust if your backend runs on a different port
 
         // --- K-line Chart Logic ---
         let currentChartData = [];
@@ -474,7 +483,66 @@
             // Display Chart
             $('#backtest-chart').empty();
             drawBacktestChart(result.fig, '#backtest-chart');
+
+            // Show save strategy section
+            $('#save-strategy-name').val(''); // Clear previous name
+            $('#save-strategy-message').text(''); // Clear previous message
         }
+
+        $('#save-strategy-btn').on('click', async function() {
+            const strategyName = $('#save-strategy-name').val();
+            const strategyCode = $('#strategy-code').val();
+            const symbol = $('#symbol-select').val();
+            const currency = "USDT"; // Hardcoded for now
+            const interval = $('#interval-select').val();
+            const initialCapital = 10000; // Hardcoded for now
+            const commissionRate = 0.001; // Hardcoded for now
+            const slippage = 0.0005; // Hardcoded for now
+            const riskFreeRate = 0.02; // Hardcoded for now
+            const githubOwner = $('#github-owner').val();
+            const githubRepo = $('#github-repo').val();
+
+            if (!strategyName) {
+                $('#save-strategy-message').text("Please enter a strategy name.").removeClass("text-green-500").addClass("text-red-500");
+                return;
+            }
+
+            try {
+                $(this).prop('disabled', true).text('Saving...');
+                const response = await fetch(`${BACKEND_URL}/strategies`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: strategyName,
+                        code: strategyCode,
+                        symbol: symbol,
+                        currency: currency,
+                        interval: interval,
+                        initial_capital: initialCapital,
+                        commission_rate: commissionRate,
+                        slippage: slippage,
+                        risk_free_rate: riskFreeRate,
+                        github_owner: githubOwner,
+                        github_repo: githubRepo
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    $('#save-strategy-message').text(result.message).removeClass("text-red-500").addClass("text-green-500");
+                } else {
+                    $('#save-strategy-message').text(`Error: ${result.detail || 'Unknown error'}`).removeClass("text-green-500").addClass("text-red-500");
+                }
+            } catch (error) {
+                console.error("Error saving strategy:", error);
+                $('#save-strategy-message').text("An error occurred while saving the strategy.").removeClass("text-green-500").addClass("text-red-500");
+            } finally {
+                $(this).prop('disabled', false).text('Save Strategy');
+            }
+        });
 
         function drawBacktestChart(figData, targetElementId) {
             var margin = {top: 20, right: 50, bottom: 30, left: 50},

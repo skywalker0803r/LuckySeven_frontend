@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Monitor - LuckySeven</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <style>
+        .trade-log-table th, .trade-log-table td {
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .trade-log-table th {
+            background-color: #f8fafc;
+            text-align: left;
+        }
+        .equity-chart-container {
+            width: 100%;
+            height: 400px;
+            background-color: #f9fafb;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="container mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-3xl font-bold mb-6 text-center">Strategy Monitor</h1>
+        <nav class="mb-4">
+            <a href="dashboard.html" class="text-blue-600 hover:underline">← Back to Dashboard</a>
+        </nav>
+
+        <div id="strategy-details" class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Strategy: <span id="strategy-name"></span></h2>
+            <p><strong>Status:</strong> <span id="strategy-status"></span></p>
+            <p><strong>PID:</strong> <span id="strategy-pid"></span></p>
+            <p><strong>Started At:</strong> <span id="strategy-started-at"></span></p>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Equity Curve</h2>
+            <div id="equity-chart" class="equity-chart-container"></div>
+        </div>
+
+        <div>
+            <h2 class="text-2xl font-semibold mb-4">Trade Logs</h2>
+            <div id="trade-logs-list" class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 trade-log-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Type</th>
+                            <th>Price</th>
+                            <th>Quantity</th>
+                            <th>Commission</th>
+                            <th>P/L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trade-logs-table-body">
+                        <!-- Trade logs will be loaded here -->
+                    </tbody>
+                </table>
+                <p id="no-trade-logs-message" class="text-gray-500 text-center mt-4" style="display: none;">No trade logs yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = "http://localhost:8001";
+        const urlParams = new URLSearchParams(window.location.search);
+        const strategyId = urlParams.get('id');
+
+        if (!strategyId) {
+            alert("Strategy ID not provided.");
+            window.location.href = "dashboard.html";
+        }
+
+        async function fetchStrategyDetails() {
+            try {
+                // Fetch saved strategy details to get its name
+                const savedStrategyResponse = await fetch(`${BACKEND_URL}/strategies`);
+                const savedStrategies = await savedStrategyResponse.json();
+                const savedStrategy = savedStrategies.find(s => s.id == strategyId);
+                if (savedStrategy) {
+                    $('#strategy-name').text(savedStrategy.name);
+                } else {
+                    $('#strategy-name').text("Unknown Strategy");
+                }
+
+                // Fetch running strategy status
+                const statusResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/status`);
+                const statusData = await statusResponse.json();
+                $('#strategy-status').text(statusData.status);
+                $('#strategy-pid').text(statusData.pid || 'N/A');
+                $('#strategy-started-at').text(statusData.started_at ? new Date(statusData.started_at).toLocaleString() : 'N/A');
+
+                // Fetch trade logs
+                const tradeLogsResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/trade_logs`);
+                const tradeLogs = await tradeLogsResponse.json();
+                const tradeLogsTableBody = $('#trade-logs-table-body');
+                tradeLogsTableBody.empty();
+
+                if (tradeLogs.length === 0) {
+                    $('#no-trade-logs-message').show();
+                } else {
+                    $('#no-trade-logs-message').hide();
+                    tradeLogs.forEach(log => {
+                        const row = `
+                            <tr>
+                                <td>${new Date(log.timestamp).toLocaleString()}</td>
+                                <td>${log.trade_type}</td>
+                                <td>${log.price.toFixed(2)}</td>
+                                <td>${log.quantity.toFixed(4)}</td>
+                                <td>${log.commission.toFixed(4)}</td>
+                                <td>${log.profit_loss !== null ? log.profit_loss.toFixed(2) : 'N/A'}</td>
+                            </tr>
+                        `;
+                        tradeLogsTableBody.append(row);
+                    });
+                }
+
+                // Fetch equity curve
+                const equityCurveResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/equity_curve`);
+                const equityCurveData = await equityCurveResponse.json();
+                drawEquityChart(equityCurveData);
+
+            } catch (error) {
+                console.error("Error fetching strategy details:", error);
+                $('#strategy-details').html('<p class="text-red-500">Failed to load strategy details.</p>');
+                $('#trade-logs-list').html('<p class="text-red-500">Failed to load trade logs.</p>');
+                $('#equity-chart').html('<p class="text-red-500">Failed to load equity curve.</p>');
+            }
+        }
+
+        function drawEquityChart(data) {
+            const margin = {top: 20, right: 30, bottom: 30, left: 60},
+                  width = $('#equity-chart').width() - margin.left - margin.right,
+                  height = $('#equity-chart').height() - margin.top - margin.bottom;
+
+            const svg = d3.select("#equity-chart").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const parseTime = d3.timeParse("%Y-%m-%dT%H:%M:%S.%L"); // Adjust format based on backend output
+
+            data.forEach(d => {
+                d.timestamp = new Date(d.timestamp); // Convert to Date object
+                d.equity = +d.equity;
+            });
+
+            const x = d3.scaleTime()
+                .range([0, width])
+                .domain(d3.extent(data, d => d.timestamp));
+
+            const y = d3.scaleLinear()
+                .range([height, 0])
+                .domain([d3.min(data, d => d.equity) * 0.95, d3.max(data, d => d.equity) * 1.05]);
+
+            const line = d3.line()
+                .x(d => x(d.timestamp))
+                .y(d => y(d.equity));
+
+            svg.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", line);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            // Add title
+            svg.append("text")
+                .attr("x", (width / 2))
+                .attr("y", 0 - (margin.top / 2))
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .style("text-decoration", "underline")
+                .text("Equity Curve");
+
+            // Add X axis label
+            svg.append("text")
+                .attr("transform", `translate(${width/2}, ${height + margin.bottom - 5})`)
+                .style("text-anchor", "middle")
+                .text("Time");
+
+            // Add Y axis label
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("Equity");
+        }
+
+        $(document).ready(function() {
+            fetchStrategyDetails();
+            // Refresh data every 5 seconds (adjust as needed)
+            setInterval(fetchStrategyDetails, 5000);
+        });
+    </script>
+</body>
+</html>
