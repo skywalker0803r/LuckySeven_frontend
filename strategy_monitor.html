@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="https://techanjs.org/techan.min.js"></script>
     <style>
         .trade-log-table th, .trade-log-table td {
             padding: 8px;
@@ -35,9 +36,18 @@
 
         <div id="strategy-details" class="mb-8">
             <h2 class="text-2xl font-semibold mb-4">Strategy: <span id="strategy-name"></span></h2>
+            <p><strong>Symbol:</strong> <span id="strategy-symbol"></span></p>
+            <p><strong>Interval:</strong> <span id="strategy-interval"></span></p>
             <p><strong>Status:</strong> <span id="strategy-status"></span></p>
             <p><strong>PID:</strong> <span id="strategy-pid"></span></p>
             <p><strong>Started At:</strong> <span id="strategy-started-at"></span></p>
+            <h3 class="text-xl font-semibold mt-4 mb-2">Strategy Code:</h3>
+            <pre id="strategy-code" class="bg-gray-50 p-4 rounded-md text-sm overflow-auto max-h-96"></pre>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">K-line Chart with Trade Signals</h2>
+            <div id="strategy-kline-chart" class="equity-chart-container"></div>
         </div>
 
         <div class="mb-8">
@@ -80,14 +90,20 @@
 
         async function fetchStrategyDetails() {
             try {
-                // Fetch saved strategy details to get its name
+                // Fetch saved strategy details to get its name, symbol, interval, and code
                 const savedStrategyResponse = await fetch(`${BACKEND_URL}/strategies`);
                 const savedStrategies = await savedStrategyResponse.json();
                 const savedStrategy = savedStrategies.find(s => s.id == strategyId);
                 if (savedStrategy) {
                     $('#strategy-name').text(savedStrategy.name);
+                    $('#strategy-symbol').text(savedStrategy.symbol || 'N/A');
+                    $('#strategy-interval').text(savedStrategy.interval || 'N/A');
+                    $('#strategy-code').text(savedStrategy.code || '// No code available');
                 } else {
                     $('#strategy-name').text("Unknown Strategy");
+                    $('#strategy-symbol').text('N/A');
+                    $('#strategy-interval').text('N/A');
+                    $('#strategy-code').text('// Strategy not found or no code available');
                 }
 
                 // Fetch running strategy status
@@ -100,10 +116,11 @@
                 if (statusData.status === "stopped" || statusData.status === "error") {
                     $('#trade-logs-list').html(`<p class="text-gray-500 text-center mt-4">Strategy is ${statusData.status}. No live data to display.</p>`);
                     $('#equity-chart').html(`<p class="text-gray-500 text-center mt-4">Strategy is ${statusData.status}. No live data to display.</p>`);
+                    $('#strategy-kline-chart').html(`<p class="text-gray-500 text-center mt-4">Strategy is ${statusData.status}. No live data to display.</p>`);
                     return; // Stop further processing
                 }
 
-                // Fetch trade logs
+                // Fetch trade logs (needed for K-line chart)
                 const tradeLogsResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/trade_logs`);
                 let tradeLogs = [];
                 if (tradeLogsResponse.ok) {
@@ -135,6 +152,47 @@
                     });
                 }
 
+                // Determine date range for K-line chart
+                let startDateChart, endDateChart;
+                if (tradeLogs.length > 0) {
+                    const firstTradeTime = new Date(tradeLogs[0].timestamp);
+                    const lastTradeTime = new Date(tradeLogs[tradeLogs.length - 1].timestamp);
+                    // Extend range slightly for better visualization
+                    startDateChart = new Date(firstTradeTime.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 7 days before first trade
+                    endDateChart = new Date(lastTradeTime.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 7 days after last trade
+                } else {
+                    // If no trade logs, use strategy started_at or default to 30 days ago
+                    startDateChart = statusData.started_at ? new Date(statusData.started_at).toISOString().slice(0, 10) : (new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+                    endDateChart = new Date().toISOString().slice(0, 10);
+                }
+
+                // Fetch K-line data for the strategy
+                const symbol = savedStrategy.symbol;
+                const interval = savedStrategy.interval;
+
+                try {
+                    const klineResponse = await fetch(`${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&start_date=${startDateChart}&end_date=${endDateChart}`);
+                    const klineData = await klineResponse.json();
+
+                    const formattedKlineData = klineData.map(d => ({
+                        date: new Date(d.open_time),
+                        open: +d.open,
+                        high: +d.high,
+                        low: +d.low,
+                        close: +d.close,
+                        volume: +d.volume
+                    }));
+
+                    // Take only the most recent 42 candlesticks
+                    const recentKlineData = formattedKlineData.slice(-42);
+
+                    drawStrategyCandlestickChart(recentKlineData, tradeLogs, '#strategy-kline-chart');
+
+                } catch (klineError) {
+                    console.error("Error fetching K-line data for strategy:", klineError);
+                    $('#strategy-kline-chart').html(`<p class="text-red-500">Failed to load K-line data: ${klineError.message}</p>`);
+                }
+
                 // Fetch equity curve
                 const equityCurveResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/equity_curve`);
                 let equityCurveData = [];
@@ -151,6 +209,7 @@
                 $('#strategy-details').html('<p class="text-red-500">Failed to load strategy details.</p>');
                 $('#trade-logs-list').html('<p class="text-red-500">Failed to load trade logs.</p>');
                 $('#equity-chart').html('<p class="text-red-500">Failed to load equity curve.</p>');
+                $('#strategy-kline-chart').html('<p class="text-red-500">Failed to load K-line chart.</p>');
             }
         }
 
@@ -223,6 +282,151 @@
                 .attr("dy", "1em")
                 .style("text-anchor", "middle")
                 .text("Equity");
+        }
+
+        // Re-use and adapt the candlestick.js logic for strategy monitor
+        function drawStrategyCandlestickChart(data, tradeLogs, targetElementId) {
+            var margin = {top: 20, right: 50, bottom: 30, left: 50},
+                width = $(targetElementId).width() - margin.left - margin.right, // Adjusted width for better fit
+                height = 400 - margin.top - margin.bottom; // Adjusted height
+
+            // Clear previous chart
+            d3.select(targetElementId).selectAll("svg").remove();
+
+            if (data.length === 0) {
+                d3.select(targetElementId).html('<p class="text-gray-500 text-center mt-4">No K-line data available.</p>');
+                return;
+            }
+
+            var parseDate = d3.timeParse("%Y-%m-%d %H:%M:%S"); // Adjust date format to match backend
+
+            var x = techan.scale.financetime()
+                    .range([0, width]);
+
+            var y = d3.scaleLinear()
+                    .range([height, 0]);
+
+            var candlestick = techan.plot.candlestick()
+                    .xScale(x)
+                    .yScale(y);
+
+            var xAxis = d3.axisBottom(x);
+            var xTopAxis = d3.axisTop(x);
+            var yAxis = d3.axisLeft(y);
+            var yRightAxis = d3.axisRight(y);
+
+            var ohlcAnnotation = techan.plot.axisannotation()
+                    .axis(yAxis)
+                    .orient('left')
+                    .format(d3.format(',.2f'));
+
+            var ohlcRightAnnotation = techan.plot.axisannotation()
+                    .axis(yRightAxis)
+                    .orient('right')
+                    .translate([width, 0]);
+
+            var timeAnnotation = techan.plot.axisannotation()
+                    .axis(xAxis)
+                    .orient('bottom')
+                    .format(d3.timeFormat('%Y-%m-%d %H:%M'))
+                    .width(65)
+                    .translate([0, height]);
+
+            var timeTopAnnotation = techan.plot.axisannotation()
+                    .axis(xTopAxis)
+                    .orient('top');
+
+            var crosshair = techan.plot.crosshair()
+                    .xScale(x)
+                    .yScale(y)
+                    .xAnnotation([timeAnnotation, timeTopAnnotation])
+                    .yAnnotation([ohlcAnnotation, ohlcRightAnnotation])
+                    .on("enter", enter)
+                    .on("out", out)
+                    .on("move", move);
+
+            var svg = d3.select(targetElementId).append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var coordsText = svg.append('text')
+                    .style("text-anchor", "end")
+                    .attr("class", "coords")
+                    .attr("x", width - 5)
+                    .attr("y", 15);
+
+            var accessor = candlestick.accessor();
+
+            data = data.sort(function(a, b) { return d3.ascending(accessor.d(a), accessor.d(b)); });
+
+            x.domain(data.map(accessor.d));
+            y.domain(techan.scale.plot.ohlc(data, accessor).domain());
+
+            svg.append("g")
+                    .datum(data)
+                    .attr("class", "candlestick")
+                    .call(candlestick);
+
+            svg.append("g")
+                    .attr("class", "x axis")
+                    .call(xTopAxis);
+
+            svg.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate(0," + height + ")")
+                    .call(xAxis);
+
+            svg.append("g")
+                    .attr("class", "y axis")
+                    .call(yAxis);
+
+            svg.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate(" + width + ",0)")
+                    .call(yRightAxis);
+
+            svg.append('g')
+                    .attr("class", "crosshair")
+                    .call(crosshair);
+
+            // Add trade signals
+            tradeLogs.forEach(log => {
+                const tradeDate = new Date(log.timestamp);
+                // Find the closest candle to the trade date for positioning the signal
+                // This is a simplification; ideally, signals should align with the exact candle they occurred on.
+                // For now, we'll find the candle whose date matches the trade date.
+                const correspondingCandle = data.find(d => d.date.getTime() === tradeDate.getTime());
+
+                if (correspondingCandle) {
+                    const signalColor = log.trade_type === "buy" ? "green" : "red";
+                    const signalSymbol = log.trade_type === "buy" ? "▲" : "▼"; // Unicode triangles
+
+                    svg.append("text")
+                        .attr("x", x(tradeDate))
+                        .attr("y", y(correspondingCandle.close) + (log.trade_type === "buy" ? 15 : -10)) // Adjust position
+                        .attr("text-anchor", "middle")
+                        .attr("fill", signalColor)
+                        .attr("font-size", "16px")
+                        .attr("font-weight", "bold")
+                        .text(signalSymbol);
+                }
+            });
+
+            function enter() {
+                coordsText.style("display", "inline");
+            }
+
+            function out() {
+                coordsText.style("display", "none");
+            }
+
+            function move(coords) {
+                coordsText.text(
+                    timeAnnotation.format()(coords.x) + ", " + ohlcAnnotation.format()(coords.y)
+                );
+            }
         }
 
         $(document).ready(function() {
