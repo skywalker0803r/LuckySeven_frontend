@@ -162,8 +162,8 @@
     </div>
 
     
-    <script>
-        const BACKEND_URL = "https://luckyseven-backend.onrender.com"; // Adjust if your backend runs on a different port
+    <script type="module">
+        import { BACKEND_URL } from './config.js';
 
         // --- K-line Chart Logic ---
         let currentChartData = [];
