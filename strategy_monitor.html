@@ -25,6 +25,14 @@
             border-radius: 0.375rem;
             margin-top: 1rem;
         }
+        .candlestick .up {
+            fill: #00da3c;
+            stroke: #00da3c;
+        }
+        .candlestick .down {
+            fill: #ef232a;
+            stroke: #ef232a;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4">
@@ -152,26 +160,14 @@
                     });
                 }
 
-                // Determine date range for K-line chart
-                let startDateChart, endDateChart;
-                if (tradeLogs.length > 0) {
-                    const firstTradeTime = new Date(tradeLogs[0].timestamp);
-                    const lastTradeTime = new Date(tradeLogs[tradeLogs.length - 1].timestamp);
-                    // Extend range slightly for better visualization
-                    startDateChart = new Date(firstTradeTime.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 7 days before first trade
-                    endDateChart = new Date(lastTradeTime.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // 7 days after last trade
-                } else {
-                    // If no trade logs, use strategy started_at or default to 30 days ago
-                    startDateChart = statusData.started_at ? new Date(statusData.started_at).toISOString().slice(0, 10) : (new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
-                    endDateChart = new Date().toISOString().slice(0, 10);
-                }
-
                 // Fetch K-line data for the strategy
                 const symbol = savedStrategy.symbol;
                 const interval = savedStrategy.interval;
 
                 try {
-                    const klineResponse = await fetch(`${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&start_date=${startDateChart}&end_date=${endDateChart}`);
+                    // Construct URL to get latest 30 data points
+                    const klineUrl = `${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&limit=30`;
+                    const klineResponse = await fetch(klineUrl);
                     const klineData = await klineResponse.json();
 
                     const formattedKlineData = klineData.map(d => ({
@@ -183,10 +179,7 @@
                         volume: +d.volume
                     }));
 
-                    // Take only the most recent 42 candlesticks
-                    const recentKlineData = formattedKlineData.slice(-42);
-
-                    drawStrategyCandlestickChart(recentKlineData, tradeLogs, '#strategy-kline-chart');
+                    drawStrategyCandlestickChart(formattedKlineData, tradeLogs, '#strategy-kline-chart');
 
                 } catch (klineError) {
                     console.error("Error fetching K-line data for strategy:", klineError);
@@ -405,7 +398,7 @@
 
                     svg.append("text")
                         .attr("x", x(tradeDate))
-                        .attr("y", y(correspondingCandle.close) + (log.trade_type === "buy" ? 15 : -10)) // Adjust position
+                        .attr("y", log.trade_type === "buy" ? y(correspondingCandle.low) + 5 : y(correspondingCandle.high) - 5) // Adjust position
                         .attr("text-anchor", "middle")
                         .attr("fill", signalColor)
                         .attr("font-size", "16px")

@@ -92,41 +92,66 @@
 
         async function startStrategy(strategyId) {
             try {
+                const statusSpan = $(`#status-${strategyId}`);
+                const startBtn = $(`#strategy-${strategyId} .start-strategy-btn`);
+                const stopBtn = $(`#strategy-${strategyId} .stop-strategy-btn`);
+
+                startBtn.prop('disabled', true).text('Starting...');
+                statusSpan.text('starting');
+
                 const response = await fetch(`${BACKEND_URL}/strategies/${strategyId}/start`, {
                     method: 'POST',
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    alert(result.message);
-                    fetchStrategies(); // Refresh list to update status
+                    // alert(result.message);
+                    // No immediate fetchStrategies() call, rely on polling or next refresh
+                    // The backend Celery task will update the status in DB, which will be reflected on next fetch
+                    statusSpan.text('running'); // Optimistically update UI
+                    stopBtn.prop('disabled', false);
                 } else {
-                    alert(`Error starting strategy: ${result.detail || 'Unknown error'}`);
+                    console.error(`Error starting strategy: ${result.detail || 'Unknown error'}`);
+                    statusSpan.text('error'); // Revert status on error
+                    startBtn.prop('disabled', false).text('Start'); // Re-enable button
                 }
             }
             catch (error) {
                 console.error("Error starting strategy:", error);
-                alert("An error occurred while starting the strategy.");
+                // alert("An error occurred while starting the strategy.");
+                $(`#status-${strategyId}`).text('error');
+                $(`#strategy-${strategyId} .start-strategy-btn`).prop('disabled', false).text('Start');
             }
         }
 
         async function stopStrategy(strategyId) {
             try {
+                const statusSpan = $(`#status-${strategyId}`);
+                const startBtn = $(`#strategy-${strategyId} .start-strategy-btn`);
+                const stopBtn = $(`#strategy-${strategyId} .stop-strategy-btn`);
+
+                stopBtn.prop('disabled', true).text('Stopping...');
+                statusSpan.text('stopping');
+
                 const response = await fetch(`${BACKEND_URL}/strategies/${strategyId}/stop`, {
                     method: 'POST',
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    alert(result.message);
-                    // Add a small delay to allow backend DB to fully update before refreshing
-                    await new Promise(resolve => setTimeout(resolve, 500)); 
-                    fetchStrategies(); // Refresh list to update status
+                    console.log(result.message);
+                    // No immediate fetchStrategies() call, rely on polling or next refresh
+                    statusSpan.text('stopped'); // Optimistically update UI
+                    startBtn.prop('disabled', false).text('Start');
                 } else {
-                    alert(`Error stopping strategy: ${result.detail || 'Unknown error'}`);
+                    console.error(`Error stopping strategy: ${result.detail || 'Unknown error'}`);
+                    statusSpan.text('error'); // Revert status on error
+                    stopBtn.prop('disabled', false).text('Stop'); // Re-enable button
                 }
             }
             catch (error) {
                 console.error("Error stopping strategy:", error);
-                alert("An error occurred while stopping the strategy.");
+                // alert("An error occurred while stopping the strategy.");
+                $(`#status-${strategyId}`).text('error');
+                $(`#strategy-${strategyId} .stop-strategy-btn`).prop('disabled', false).text('Stop');
             }
         }
 
@@ -137,16 +162,19 @@
                 });
 
                 if (response.ok || response.status === 404) { // Treat 404 as successful deletion
-                    alert("Strategy deleted successfully!");
-                    fetchStrategies(); // Refresh the list
+                    console.log("Strategy deleted successfully!");
+                    $(`#strategy-${strategyId}`).remove(); // Directly remove the row from DOM
+                    if ($('#strategies-table-body tr').length === 0) {
+                        $('#no-strategies-message').show();
+                    }
                 } else {
                     const errorData = await response.json();
-                    alert(`Error deleting strategy: ${errorData.detail || 'Unknown error'}`);
+                    console.error(`Error deleting strategy: ${errorData.detail || 'Unknown error'}`);
                 }
             }
             catch (error) {
                 console.error("Error deleting strategy:", error);
-                alert("An error occurred while deleting the strategy.");
+                // alert("An error occurred while deleting the strategy.");
             }
         }
 
@@ -167,15 +195,6 @@
             $(document).on('click', '.delete-strategy-btn', async function() {
                 const strategyId = $(this).data('id');
                 if (confirm(`Are you sure you want to delete strategy ID: ${strategyId}?`)) {
-                    // Before deleting, try to stop the strategy if it's running
-                    const statusResponse = await fetch(`${BACKEND_URL}/strategies/${strategyId}/status`);
-                    const statusData = await statusResponse.json();
-                    if (statusData.status !== "stopped") {
-                        alert("Stopping strategy before deletion...");
-                        await stopStrategy(strategyId); // Wait for stop to complete
-                        // Give a small delay for DB update to propagate
-                        await new Promise(resolve => setTimeout(resolve, 1000)); 
-                    }
                     await deleteStrategy(strategyId);
                 }
             });

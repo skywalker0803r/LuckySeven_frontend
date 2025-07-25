@@ -188,16 +188,20 @@
         async function fetchAndDrawChart() {
             const symbol = $('#symbol-select').val();
             const interval = $('#interval-select').val();
-            const startDate = $('#start-date-chart').val();
-            const endDate = $('#end-date-chart').val();
+            const rawStartDate = $('#start-date-chart').val();
+            const rawEndDate = $('#end-date-chart').val();
 
-            if (!startDate || !endDate) {
-                console.warn("Chart start or end date is not set.");
-                return; // Do not proceed if dates are not set
+            // Construct full datetime strings for backend
+            const startDate = rawStartDate ? `${rawStartDate} 00:00:00` : '';
+            const endDate = rawEndDate ? `${rawEndDate} 23:59:59` : new Date().toISOString().slice(0, 19).replace('T', ' '); // Use current time if end_date is not provided
+
+            let url = `${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&start_date=${startDate}`;
+            if (rawEndDate) { // Only add end_date if it's explicitly provided by user
+                url += `&end_date=${endDate}`;
             }
 
             try {
-                const response = await fetch(`${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&start_date=${startDate}&end_date=${endDate}`);
+                const response = await fetch(url); // Modified: Use constructed URL
                 const data = await response.json();
 
                 // Adapt data for candlestick.js
@@ -210,9 +214,12 @@
                     volume: +d.volume
                 }));
 
+                // Take only the most recent 30 candlesticks
+                const recentKlineData = currentChartData.slice(-30);
+
                 // Clear previous chart and draw new one
                 $('#chart').empty();
-                drawCandlestickChart(currentChartData, '#chart');
+                drawCandlestickChart(recentKlineData, '#chart');
 
             } catch (error) {
                 console.error("Error fetching crypto prices:", error);
@@ -253,10 +260,20 @@
                     .orient('right')
                     .translate([width, 0]);
 
+            var timeFormat;
+            const interval = $('#interval-select').val();
+            if (interval.endsWith('d')) {
+                timeFormat = '%Y-%m-%d';
+            } else if (interval.endsWith('h') || interval.endsWith('m')) {
+                timeFormat = '%Y-%m-%d %H:%M';
+            } else {
+                timeFormat = '%Y-%m-%d %H:%M:%S'; // Default for other cases
+            }
+
             var timeAnnotation = techan.plot.axisannotation()
                     .axis(xAxis)
                     .orient('bottom')
-                    .format(d3.timeFormat('%Y-%m-%d %H:%M'))
+                    .format(d3.timeFormat(timeFormat))
                     .width(65)
                     .translate([0, height]);
 
@@ -339,9 +356,50 @@
             }
         }
 
+        // Helper function to adjust start date based on interval
+        function adjustStartDateForInterval() {
+            const interval = $('#interval-select').val();
+            const numCandles = 365; // Desired number of candles to display (as per user request)
+            let newStartDate = new Date();
+
+            switch (interval) {
+                case '1m':
+                    newStartDate.setMinutes(newStartDate.getMinutes() - numCandles);
+                    break;
+                case '3m':
+                    newStartDate.setMinutes(newStartDate.getMinutes() - numCandles * 3);
+                    break;
+                case '5m':
+                    newStartDate.setMinutes(newStartDate.getMinutes() - numCandles * 5);
+                    break;
+                case '15m':
+                    newStartDate.setMinutes(newStartDate.getMinutes() - numCandles * 15);
+                    break;
+                case '30m':
+                    newStartDate.setMinutes(newStartDate.getMinutes() - numCandles * 30);
+                    break;
+                case '1h':
+                    newStartDate.setHours(newStartDate.getHours() - numCandles);
+                    break;
+                case '4h':
+                    newStartDate.setHours(newStartDate.getHours() - numCandles * 4);
+                    break;
+                case '1d':
+                    newStartDate.setDate(newStartDate.getDate() - numCandles);
+                    break;
+                default:
+                    newStartDate.setDate(newStartDate.getDate() - 365); // Fallback to 1 year for unknown intervals
+                    break;
+            }
+            $('#start-date-chart').val(newStartDate.toISOString().slice(0, 10));
+        }
+
         // Event Listeners for K-line Chart
         $('#symbol-select').on('change', fetchAndDrawChart);
-        $('#interval-select').on('change', fetchAndDrawChart);
+        $('#interval-select').on('change', function() {
+            adjustStartDateForInterval(); // Adjust start date when interval changes
+            fetchAndDrawChart();
+        });
         $('#start-date-chart').on('change', fetchAndDrawChart);
         $('#end-date-chart').on('change', fetchAndDrawChart);
         $('#search-symbol').on('keypress', function(e) {
@@ -408,16 +466,23 @@
             const interval = $('#interval-select').val();
             const strategyCode = $('#strategy-code').val();
             const selectedStrategyName = $('#strategy-select').val();
-            const startDate = $('#start-date-chart').val();
-            const endDate = $('#end-date-chart').val();
+            const rawStartDate = $('#start-date-chart').val();
+            const rawEndDate = $('#end-date-chart').val();
 
-            if (!startDate || !endDate) {
-                alert("Please select both start and end dates for backtest.");
+            if (!rawStartDate) {
+                alert("Please select a start date for backtest.");
                 return;
             }
 
+            // Construct full datetime strings for backend
+            const startDate = `${rawStartDate} 00:00:00`;
+            const endDate = rawEndDate ? `${rawEndDate} 23:59:59` : new Date().toISOString().slice(0, 19).replace('T', ' ');
+
             try {
-                $(this).prop('disabled', true).text('Running Backtest...');
+                $(this).prop('disabled', true).text('Starting Backtest...');
+                $('#backtest-metrics').html('<p>Backtest is starting...</p>');
+                $('#backtest-chart').empty();
+
                 const requestBody = {
                     symbol: symbol,
                     currency: "USDT",
@@ -425,14 +490,13 @@
                     start_date: startDate,
                     end_date: endDate,
                     strategy_code: strategyCode,
-                        strategy_name: selectedStrategyName,
+                    strategy_name: selectedStrategyName,
                     initial_capital: 10000,
                     commission_rate: 0.001,
                     slippage: 0.0005,
                     risk_free_rate: 0.02
                 };
 
-                // Add GitHub repo info if commit_sma is selected
                 if ($('#strategy-select').val() === "commit_sma") {
                     requestBody.github_owner = $('#github-owner').val();
                     requestBody.github_repo = $('#github-repo').val();
@@ -449,33 +513,36 @@
                 const result = await response.json();
 
                 if (!response.ok) {
-                    let errorMessage = 'Unknown error during backtest.';
+                    let errorMessage = 'Unknown error during backtest initiation.';
                     if (result.detail) {
-                        if (Array.isArray(result.detail)) {
-                            errorMessage = result.detail.map(err => `${err.loc.join('.')} - ${err.msg}`).join('; ');
-                        } else {
-                            errorMessage = result.detail;
-                        }
+                        errorMessage = result.detail;
                     }
                     throw new Error(errorMessage);
                 }
 
-                displayBacktestResults(result);
+                // Directly display results as backtest is no longer async via Celery
+                displayBacktestResults(result.result);
+                $(this).prop('disabled', false).text('Run Backtest');
+
 
             } catch (error) {
-                console.error("Error running backtest:", error);
+                console.error("Error initiating backtest:", error);
                 $('#backtest-metrics').html(`<p class="text-red-500">Error: ${error.message}</p>`);
-                $('#backtest-chart').empty();
-            } finally {
                 $(this).prop('disabled', false).text('Run Backtest');
             }
         });
+
+        // Removed pollBacktestStatus as it's no longer needed without Celery
 
         function displayBacktestResults(result) {
             // Display Metrics
             let metricsHtml = '<h3 class="text-xl font-semibold mb-2">Metrics</h3><table class="min-w-full divide-y divide-gray-200"><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>';
             for (const key in result.metrics) {
                 metricsHtml += `<tr><td>${key}</td><td>${result.metrics[key]}</td></tr>`;
+            }
+            // Add the new metric for K-bar count
+            if (result.metrics["回測K棒數量"] !== undefined) {
+                metricsHtml += `<tr><td>回測K棒數量</td><td>${result.metrics["回測K棒數量"]}</td></tr>`;
             }
             metricsHtml += '</tbody></table>';
             $('#backtest-metrics').html(metricsHtml);
@@ -657,12 +724,10 @@
 
         // Initial fetches on page load
         $(document).ready(function() {
-            // Set default dates for chart
-            const today = new Date();
-            const oneMonthAgo = new Date(today);
-            oneMonthAgo.setMonth(today.getMonth() - 1);
-            $('#start-date-chart').val(oneMonthAgo.toISOString().slice(0, 10));
-            $('#end-date-chart').val(today.toISOString().slice(0, 10));
+            // Adjust start date initially based on default interval
+            adjustStartDateForInterval();
+            // Modified: Do not set end_date-chart initially to fetch latest data
+            // $('#end-date-chart').val(today.toISOString().slice(0, 10));
 
             fetchTradingPairs();
             fetchStrategyList();
