@@ -6,6 +6,7 @@
     <title>Strategy Dashboard - LuckySeven</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
     <style>
         .strategy-table th, .strategy-table td {
             padding: 8px;
@@ -17,31 +18,17 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4">
-    <div class="container mx-auto bg-white p-6 rounded-lg shadow-md">
-        <h1 class="text-3xl font-bold mb-6 text-center">Strategy Dashboard</h1>
+<body class="bg-gray-100 p-2 sm:p-4">
+    <div class="container mx-auto bg-white p-4 sm:p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-center">Strategy Dashboard</h1>
         <nav class="mb-4">
             <a href="index.html" class="text-blue-600 hover:underline">← Back to Main Page</a>
         </nav>
 
-        <div id="strategies-list" class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 strategy-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Symbol</th>
-                        <th>Interval</th>
-                        <th>Status</th>
-                        <th>Created At</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="strategies-table-body">
-                    <!-- Strategies will be loaded here -->
-                </tbody>
-            </table>
-            <p id="no-strategies-message" class="text-gray-500 text-center mt-4" style="display: none;">No strategies saved yet.</p>
+        <div id="strategies-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Strategies will be loaded here as cards -->
         </div>
+        <p id="no-strategies-message" class="text-gray-500 text-center mt-4" style="display: none;">No strategies saved yet.</p>
     </div>
 
     <script type="module">
@@ -51,8 +38,8 @@
             try {
                 const response = await fetch(`${BACKEND_URL}/strategies`);
                 const strategies = await response.json();
-                const tableBody = $('#strategies-table-body');
-                tableBody.empty();
+                const strategiesListContainer = $('#strategies-list');
+                strategiesListContainer.empty();
 
                 if (strategies.length === 0) {
                     $('#no-strategies-message').show();
@@ -66,28 +53,78 @@
                     const statusData = await statusResponse.json();
                     const currentStatus = statusData.status;
 
-                    const row = `
-                        <tr id="strategy-${strategy.id}">
-                            <td>${strategy.name}</td>
-                            <td>${strategy.symbol || 'N/A'}</td>
-                            <td>${strategy.interval || 'N/A'}</td>
-                            <td><span id="status-${strategy.id}">${currentStatus}</span></td>
-                            <td>${new Date(strategy.created_at).toLocaleString()}</td>
-                            <td>
-                                <button class="start-strategy-btn bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs mr-2" data-id="${strategy.id}" ${currentStatus === 'running' ? 'disabled' : ''}>Start</button>
-                                <button class="stop-strategy-btn bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs mr-2" data-id="${strategy.id}" ${currentStatus === 'stopped' ? 'disabled' : ''}>Stop</button>
-                                <button class="delete-strategy-btn bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded text-xs mr-2" data-id="${strategy.id}">Delete</button>
+                    const card = `
+                        <div id="strategy-${strategy.id}" class="bg-white p-4 rounded-lg shadow-md flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2">${strategy.name}</h3>
+                                <p class="text-sm text-gray-600"><strong>Symbol:</strong> ${strategy.symbol || 'N/A'}</p>
+                                <p class="text-sm text-gray-600"><strong>Interval:</strong> ${strategy.interval || 'N/A'}</p>
+                                <p class="text-sm text-gray-600"><strong>Status:</strong> <span id="status-${strategy.id}" class="font-medium">${currentStatus}</span></p>
+                                <p class="text-sm text-gray-600"><strong>Trades:</strong> ${strategy.trade_count}</p>
+                                <p class="text-sm text-gray-600"><strong>P/L:</strong> ${strategy.total_profit_loss}</p>
+                                <p class="text-sm text-gray-600"><strong>Created At:</strong> ${new Date(strategy.created_at).toLocaleString()}</p>
+                                <div class="equity-curve-sparkline" id="sparkline-${strategy.id}" style="width: 100%; height: 60px;"></div>
+                            </div>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <button class="start-strategy-btn bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs" data-id="${strategy.id}" ${currentStatus === 'running' ? 'disabled' : ''}>Start</button>
+                                <button class="stop-strategy-btn bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs" data-id="${strategy.id}" ${currentStatus === 'stopped' ? 'disabled' : ''}>Stop</button>
+                                <button class="delete-strategy-btn bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded text-xs" data-id="${strategy.id}">Delete</button>
                                 <a href="strategy_monitor.html?id=${strategy.id}" class="view-details-btn bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs">View Details</a>
-                            </td>
-                        </tr>
+                            </div>
+                        </div>
                     `;
-                    tableBody.append(row);
+                    strategiesListContainer.append(card);
+
+                    // Draw sparkline if data exists
+                    if (strategy.equity_curve_data && strategy.equity_curve_data.length > 1) {
+                        drawSparkline(strategy.equity_curve_data, `#sparkline-${strategy.id}`);
+                    }
                 });
 
             } catch (error) {
                 console.error("Error fetching strategies:", error);
                 $('#strategies-list').html('<p class="text-red-500 text-center">Failed to load strategies. Please check backend connection.</p>');
             }
+        }
+
+        // Function to draw a simple sparkline
+        function drawSparkline(data, targetElementId) {
+            const margin = { top: 5, right: 5, bottom: 5, left: 5 };
+            const width = $(targetElementId).width() - margin.left - margin.right;
+            const height = $(targetElementId).height() - margin.top - margin.bottom;
+
+            const svg = d3.select(targetElementId).append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const parseDate = d3.timeParse("%Y-%m-%dT%H:%M:%S"); // Adjust format for ISO string without microseconds
+
+            // Parse data
+            const parsedData = data.map(d => ({
+                date: parseDate(d[0]),
+                value: d[1]
+            }));
+
+            const x = d3.scaleTime()
+                .range([0, width])
+                .domain(d3.extent(parsedData, d => d.date));
+
+            const y = d3.scaleLinear()
+                .range([height, 0])
+                .domain(d3.extent(parsedData, d => d.value));
+
+            const line = d3.line()
+                .x(d => x(d.date))
+                .y(d => y(d.value));
+
+            svg.append("path")
+                .datum(parsedData)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", line);
         }
 
         async function startStrategy(strategyId) {

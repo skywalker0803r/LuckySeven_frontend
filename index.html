@@ -76,28 +76,28 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4">
-    <h1 class="text-3xl font-bold mb-6 text-center">LuckySeven Trading Platform</h1>
+<body class="bg-gray-100 p-2 sm:p-4">
+    <h1 class="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-center">LuckySeven Trading Platform</h1>
     <nav class="mb-4 text-center">
         <a href="dashboard.html" class="text-blue-600 hover:underline">Go to Dashboard</a>
     </nav>
 
-    <div class="container mx-auto bg-white p-6 rounded-lg shadow-md">
+    <div class="container mx-auto bg-white p-4 sm:p-6 rounded-lg shadow-md">
         <!-- K-line Chart Section -->
         <div class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4">Cryptocurrency K-line Chart</h2>
-            <div class="flex items-center space-x-4 mb-4">
+            <h2 class="text-xl sm:text-2xl font-semibold mb-2 sm:mb-4">Cryptocurrency K-line Chart</h2>
+            <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <div>
                     <label for="symbol-select" class="block text-sm font-medium text-gray-700">Symbol:</label>
                     <select id="symbol-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
                 </div>
                 <div>
                     <label for="search-symbol" class="block text-sm font-medium text-gray-700">Search Symbol:</label>
-                    <input type="text" id="search-symbol" placeholder="e.g., BTC" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <input type="text" id="search-symbol" placeholder="e.g., BTC" class="mt-1 block w-full sm:w-auto pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
                     <label for="interval-select" class="block text-sm font-medium text-gray-700">Interval:</label>
-                    <select id="interval-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <select id="interval-select" class="mt-1 block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                         <option value="1m">1m</option>
                         <option value="3m">3m</option>
                         <option value="5m">5m</option>
@@ -110,52 +110,52 @@
                 </div>
                 <div>
                     <label for="start-date-chart" class="block text-sm font-medium text-gray-700">Start Date:</label>
-                    <input type="date" id="start-date-chart" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <input type="date" id="start-date-chart" class="mt-1 block w-full sm:w-auto pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
                     <label for="end-date-chart" class="block text-sm font-medium text-gray-700">End Date:</label>
-                    <input type="date" id="end-date-chart" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <input type="date" id="end-date-chart" class="mt-1 block w-full sm:w-auto pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
             </div>
-            <div id="chart" class="bg-gray-50 p-4 rounded-md"></div>
+            <div id="chart" class="bg-gray-50 p-4 rounded-md w-full overflow-x-auto"></div>
         </div>
 
         <!-- Strategy Editor Section -->
         <div class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4">Strategy Editor</h2>
-            <div class="flex items-center space-x-4 mb-4">
+            <h2 class="text-xl sm:text-2xl font-semibold mb-2 sm:mb-4">Strategy Editor</h2>
+            <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <div>
                     <label for="strategy-select" class="block text-sm font-medium text-gray-700">Select Strategy:</label>
-                    <select id="strategy-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                    <select id="strategy-select" class="mt-1 block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
                 </div>
             </div>
             <div id="github-repo-inputs" class="space-y-4 mb-4" style="display: none;">
                 <div>
                     <label for="github-owner" class="block text-sm font-medium text-gray-700">GitHub Owner:</label>
-                    <input type="text" id="github-owner" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="binance">
+                    <input type="text" id="github-owner" class="mt-1 block w-full sm:w-auto pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="binance">
                 </div>
                 <div>
                     <label for="github-repo" class="block text-sm font-medium text-gray-700">GitHub Repo:</label>
-                    <input type="text" id="github-repo" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="binance-spot-api-docs">
+                    <input type="text" id="github-repo" class="mt-1 block w-full sm:w-auto pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="binance-spot-api-docs">
                 </div>
             </div>
             <textarea id="strategy-code" class="strategy-editor w-full p-4 border border-gray-300 rounded-md" rows="20"></textarea>
-            <button id="run-backtest-btn" class="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Run Backtest</button>
+            <button id="run-backtest-btn" class="mt-4 px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full sm:w-auto">Run Backtest</button>
         </div>
 
         <!-- Backtest Results Section -->
         <div>
-            <h2 class="text-2xl font-semibold mb-4">Backtest Results</h2>
-            <div id="backtest-metrics" class="backtest-results">
+            <h2 class="text-xl sm:text-2xl font-semibold mb-2 sm:mb-4">Backtest Results</h2>
+            <div id="backtest-metrics" class="backtest-results overflow-x-auto">
                 <!-- Metrics will be displayed here -->
             </div>
             <div class="mt-4">
-                <h3 class="text-xl font-semibold mb-2">Save Strategy</h3>
-                <input type="text" id="save-strategy-name" placeholder="Enter strategy name" class="mt-1 block w-64 pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                <button id="save-strategy-btn" class="mt-2 px-6 py-2 bg-green-600 text-white font-semibold rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">Save Strategy</button>
+                <h3 class="text-lg sm:text-xl font-semibold mb-2">Save Strategy</h3>
+                <input type="text" id="save-strategy-name" placeholder="Enter strategy name" class="mt-1 block w-full sm:w-64 pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <button id="save-strategy-btn" class="mt-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 w-full sm:w-auto">Save Strategy</button>
                 <p id="save-strategy-message" class="mt-2 text-sm"></p>
             </div>
-            <div id="backtest-chart" class="bg-gray-50 p-4 rounded-md mt-4">
+            <div id="backtest-chart" class="bg-gray-50 p-4 rounded-md mt-4 w-full overflow-x-auto">
                 <!-- Chart will be displayed here -->
             </div>
         </div>
@@ -230,7 +230,7 @@
         // Re-use and adapt the candlestick.js logic
         function drawCandlestickChart(data, targetElementId) {
             var margin = {top: 20, right: 50, bottom: 30, left: 50},
-                width = 900 - margin.left - margin.right, // Adjusted width for better fit
+                width = $(targetElementId).width() - margin.left - margin.right, // Adjusted width for better fit
                 height = 400 - margin.top - margin.bottom; // Adjusted height
 
             var parseDate = d3.timeParse("%Y-%m-%d %H:%M:%S"); // Adjust date format to match backend
@@ -411,7 +411,7 @@
                     symbolSelect.val(searchTerm);
                     fetchAndDrawChart();
                 } else {
-                    alert(`Symbol '${searchTerm}' not found in the list.`);
+                    console.warn(`Symbol '${searchTerm}' not found in the list.`);
                 }
             }
         });
@@ -613,7 +613,7 @@
 
         function drawBacktestChart(figData, targetElementId) {
             var margin = {top: 20, right: 50, bottom: 30, left: 50},
-                width = 900 - margin.left - margin.right,
+                width = $(targetElementId).width() - margin.left - margin.right,
                 height = 400 - margin.top - margin.bottom;
 
             var svg = d3.select(targetElementId).append("svg")
