@@ -60,6 +60,7 @@
             border: 1px solid #ddd;
             padding: 10px;
             min-height: 300px;
+            font-size: 16px; /* Increased font size */
         }
         .backtest-results table {
             width: 100%;
@@ -167,6 +168,7 @@
 
         // --- K-line Chart Logic ---
         let currentChartData = [];
+        let refreshIntervalId; // Variable to store the interval ID
 
         async function fetchTradingPairs() {
             try {
@@ -198,6 +200,16 @@
             let url = `${BACKEND_URL}/crypto_prices?symbol=${symbol}&currency=USDT&interval=${interval}&start_date=${startDate}`;
             if (rawEndDate) { // Only add end_date if it's explicitly provided by user
                 url += `&end_date=${endDate}`;
+                // If end date is explicitly set, stop auto-refresh
+                if (refreshIntervalId) {
+                    clearInterval(refreshIntervalId);
+                    refreshIntervalId = null;
+                }
+            } else {
+                // If no end date is set, start/continue auto-refresh
+                if (!refreshIntervalId) {
+                    refreshIntervalId = setInterval(fetchAndDrawChart, 5000); // Refresh every 5 seconds
+                }
             }
 
             try {
@@ -217,8 +229,6 @@
                 // Take only the most recent 30 candlesticks
                 const recentKlineData = currentChartData.slice(-30);
 
-                // Clear previous chart and draw new one
-                $('#chart').empty();
                 drawCandlestickChart(recentKlineData, '#chart');
 
             } catch (error) {
@@ -234,6 +244,29 @@
                 height = 400 - margin.top - margin.bottom; // Adjusted height
 
             var parseDate = d3.timeParse("%Y-%m-%d %H:%M:%S"); // Adjust date format to match backend
+
+            // Select the SVG element, or create it if it doesn't exist
+            var svg = d3.select(targetElementId).select("svg");
+            if (svg.empty()) {
+                svg = d3.select(targetElementId).append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                // Append initial groups for axes, candlestick, crosshair, and text
+                svg.append("g").attr("class", "candlestick");
+                svg.append("g").attr("class", "x axis top"); // Added class for top axis
+                svg.append("g").attr("class", "x axis bottom").attr("transform", "translate(0," + height + ")"); // Added class for bottom axis
+                svg.append("g").attr("class", "y axis left"); // Added class for left axis
+                svg.append("g").attr("class", "y axis right").attr("transform", "translate(" + width + ",0)"); // Added class for right axis
+                svg.append("g").attr("class", "crosshair");
+                svg.append('text').attr("class", "symbol-text").attr("x", 5).attr("y", 15); // Added class for symbol text
+                svg.append('text').attr("class", "coords").style("text-anchor", "end").attr("x", width - 5).attr("y", 15); // Added class for coords text
+            } else {
+                // If SVG already exists, just select the 'g' element
+                svg = d3.select(targetElementId).select("g");
+            }
 
             var x = techan.scale.financetime()
                     .range([0, width]);
@@ -290,17 +323,8 @@
                     .on("out", out)
                     .on("move", move);
 
-            var svg = d3.select(targetElementId).append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g")
-                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-            var coordsText = svg.append('text')
-                    .style("text-anchor", "end")
-                    .attr("class", "coords")
-                    .attr("x", width - 5)
-                    .attr("y", 15);
+            var coordsText = svg.select('.coords'); // Select existing coords text
+            var symbolText = svg.select('.symbol-text'); // Select existing symbol text
 
             var accessor = candlestick.accessor();
 
@@ -309,37 +333,20 @@
             x.domain(data.map(accessor.d));
             y.domain(techan.scale.plot.ohlc(data, accessor).domain());
 
-            svg.append("g")
-                    .datum(data)
-                    .attr("class", "candlestick")
-                    .call(candlestick);
+            // Update candlestick chart
+            svg.select(".candlestick").datum(data).call(candlestick);
 
-            svg.append("g")
-                    .attr("class", "x axis")
-                    .call(xTopAxis);
+            // Update axes
+            svg.select(".x.axis.top").call(xTopAxis);
+            svg.select(".x.axis.bottom").call(xAxis);
+            svg.select(".y.axis.left").call(yAxis);
+            svg.select(".y.axis.right").call(yRightAxis);
 
-            svg.append("g")
-                    .attr("class", "x axis")
-                    .attr("transform", "translate(0," + height + ")")
-                    .call(xAxis);
+            // Update crosshair
+            svg.select(".crosshair").call(crosshair);
 
-            svg.append("g")
-                    .attr("class", "y axis")
-                    .call(yAxis);
-
-            svg.append("g")
-                    .attr("class", "y axis")
-                    .attr("transform", "translate(" + width + ",0)")
-                    .call(yRightAxis);
-
-            svg.append('g')
-                    .attr("class", "crosshair")
-                    .call(crosshair);
-
-            svg.append('text')
-                    .attr("x", 5)
-                    .attr("y", 15)
-                    .text(`${$('#symbol-select').val()}/USDT`);
+            // Update text
+            symbolText.text(`${$('#symbol-select').val()}/USDT`);
 
             function enter() {
                 coordsText.style("display", "inline");
@@ -401,7 +408,13 @@
             fetchAndDrawChart();
         });
         $('#start-date-chart').on('change', fetchAndDrawChart);
-        $('#end-date-chart').on('change', fetchAndDrawChart);
+        $('#end-date-chart').on('change', function() {
+            if (refreshIntervalId) {
+                clearInterval(refreshIntervalId);
+                refreshIntervalId = null;
+            }
+            fetchAndDrawChart();
+        });
         $('#search-symbol').on('keypress', function(e) {
             if (e.which === 13) { // Enter key pressed
                 const searchTerm = $(this).val().toUpperCase();

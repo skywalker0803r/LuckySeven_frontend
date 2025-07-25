@@ -47,11 +47,8 @@
                 }
                 $('#no-strategies-message').hide();
 
-                strategies.forEach(async strategy => {
-                    // Fetch current running status
-                    const statusResponse = await fetch(`${BACKEND_URL}/strategies/${strategy.id}/status`);
-                    const statusData = await statusResponse.json();
-                    const currentStatus = statusData.status;
+                strategies.forEach(strategy => {
+                    const currentStatus = strategy.status;
 
                     const card = `
                         <div id="strategy-${strategy.id}" class="bg-white p-4 rounded-lg shadow-md flex flex-col justify-between">
@@ -93,6 +90,7 @@
             const width = $(targetElementId).width() - margin.left - margin.right;
             const height = $(targetElementId).height() - margin.top - margin.bottom;
 
+            d3.select(targetElementId).html(""); // Clear previous SVG content
             const svg = d3.select(targetElementId).append("svg")
                 .attr("width", width + margin.left + margin.right)
                 .attr("height", height + margin.top + margin.bottom)
